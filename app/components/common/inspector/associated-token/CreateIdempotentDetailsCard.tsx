@@ -8,17 +8,21 @@ import {
     TransactionInstruction,
     VersionedMessage,
 } from '@solana/web3.js';
-import { ParsedCreateAssociatedTokenIdempotentInstruction } from '@solana-program/token';
+import {
+    parseCreateAssociatedTokenIdempotentInstruction,
+    ParsedCreateAssociatedTokenIdempotentInstruction,
+} from '@solana-program/token';
 import React from 'react';
 
 import { AddressFromLookupTableWithContext, AddressWithContext } from '../../../inspector/AddressWithContext';
 import { fillAddressTableLookupsAccounts, findLookupAddress } from '../../../inspector/utils';
+import { IInstruction, IAccountMeta } from 'web3js-experimental';
 
 export function CreateIdempotentDetailsCard(props: {
     childIndex?: number;
     children?: React.ReactNode;
     index: number;
-    info: ParsedCreateAssociatedTokenIdempotentInstruction['accounts'];
+    info: ReturnType<typeof parseCreateAssociatedTokenIdempotentInstruction>;
     innerCards?: JSX.Element[];
     ix: ParsedInstruction;
     message?: VersionedMessage;
@@ -36,9 +40,12 @@ export function CreateIdempotentDetailsCard(props: {
         innerCards,
         childIndex,
         InstructionCardComponent = InspectorInstructionCard,
+        instructionData,
     } = props;
 
-    console.log(8989, info, raw?.keys, raw?.accountKeyIndexes)
+    // console.log(8989, info, raw?.keys, raw?.accountKeyIndexes)
+    console.log('ix data:', instructionData, info);
+    console.log('how parse this?', info.accounts.payer);
 
     return (
         <InstructionCardComponent
@@ -51,13 +58,16 @@ export function CreateIdempotentDetailsCard(props: {
             innerCards={innerCards}
             childIndex={childIndex}
         >
-           <tr>
+            <tr>
                 <td>Payer</td>
                 <td className="text-lg-end">
-                    {message && <AddressTableLookupAddress accountIndex={raw.accountKeyindexes[0]} message={message} />}
+                    {/* {message && (
+                        <AddressTableLookupAddress accountIndex={instructionData.accounts[0]} message={message} />
+                    )} */}
+                    <Address pubkey={new PublicKey(info.accounts.payer.pubkey.toBase58())} alignRight link />
                 </td>
             </tr>
-{/*
+            {/*
             <tr>
                 <td>Account</td>
                 <td className="text-lg-end">
@@ -96,10 +106,7 @@ export function CreateIdempotentDetailsCard(props: {
     );
 }
 
-function AddressTableLookupAddress({ accountIndex, message}: {
-    accountIndex: number;
-    message: VersionedMessage;
-}){
+function AddressTableLookupAddress({ accountIndex, message }: { accountIndex: number; message: VersionedMessage }) {
     const lookupsForAccountKeyIndex = fillAddressTableLookupsAccounts(message.addressTableLookups);
     const { lookup, dynamicLookups } = findLookupAddress(accountIndex, message, lookupsForAccountKeyIndex);
 
@@ -114,5 +121,5 @@ function AddressTableLookupAddress({ accountIndex, message}: {
                 />
             )}
         </>
-    )
+    );
 }

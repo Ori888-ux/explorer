@@ -1,4 +1,4 @@
-import { IAccountMeta, TAccount } from '@solana/kit';
+import { IAccountMeta, IInstruction, TAccount } from '@solana/kit';
 import * as spl from '@solana/spl-token';
 import {
     AccountMeta,
@@ -11,9 +11,10 @@ import {
     TransactionInstruction,
     VersionedMessage,
 } from '@solana/web3.js';
-import { CREATE_ASSOCIATED_TOKEN_DISCRIMINATOR, CREATE_ASSOCIATED_TOKEN_IDEMPOTENT_DISCRIMINATOR, parseCreateAssociatedTokenIdempotentInstruction, parseCreateAssociatedTokenInstruction, parseRecoverNestedAssociatedTokenInstruction,RECOVER_NESTED_ASSOCIATED_TOKEN_DISCRIMINATOR } from '@solana-program/token';
+import { AssociatedTokenInstruction, CREATE_ASSOCIATED_TOKEN_DISCRIMINATOR, identifyAssociatedTokenInstruction, parseCreateAssociatedTokenIdempotentInstruction, parseCreateAssociatedTokenInstruction, parseRecoverNestedAssociatedTokenInstruction } from '@solana-program/token';
+// mport { IInstruction } from 'web3js-experimental';
 
-function discriminatorToBuffer(discrimnator: number): Buffer{
+function discriminatorToBuffer(discrimnator: number): Buffer {
     return Buffer.from(Uint8Array.from([discrimnator]));
 }
 
@@ -24,34 +25,36 @@ function intoProgramName(programId: PublicKey): string | undefined {
     /* add other variants here */
 }
 
-function intoParsedData(instruction: TransactionInstruction, parsed?: any): any{
+function intoParsedData(instruction: TransactionInstruction, parsed?: any): any {
     const { programId, data } = instruction;
     const UNKNOWN_PROGRAM_TYPE = ''; // empty string represents that the program is unknown
     let info = {};
 
     if (programId.equals(spl.ASSOCIATED_TOKEN_PROGRAM_ID)) {
         let type;
-        //console.log("PARSED", data, data.equals(discriminatorToBuffer(CREATE_ASSOCIATED_TOKEN_IDEMPOTENT_DISCRIMINATOR)))
-        if (data.equals(Uint8Array.from(Buffer.alloc(CREATE_ASSOCIATED_TOKEN_DISCRIMINATOR)))) {
-            type = 'create';
-            instruction.data = discriminatorToBuffer(CREATE_ASSOCIATED_TOKEN_DISCRIMINATOR);
-            info = parseCreateAssociatedTokenInstruction(intoInstructionData(instruction));
+        const instructionType = identifyAssociatedTokenInstruction({ data: Uint8Array.from(data) });
+        console.log('ix type:', instructionType);
+        switch (instructionType) {
+            case AssociatedTokenInstruction.CreateAssociatedToken:
+                type = 'create';
+                instruction.data = discriminatorToBuffer(CREATE_ASSOCIATED_TOKEN_DISCRIMINATOR);
+                info = parseCreateAssociatedTokenInstruction(intoInstructionData(instruction));
+                break;
+            case AssociatedTokenInstruction.CreateAssociatedTokenIdempotent:
+                type = 'createIdempotent';
+                info = parseCreateAssociatedTokenIdempotentInstruction(intoInstructionData(instruction));
+                console.log({ info });
+                break;
+            case AssociatedTokenInstruction.RecoverNestedAssociatedToken:
+                type = 'recoverNested';
+                info = parseRecoverNestedAssociatedTokenInstruction(intoInstructionData(instruction));
+                break;
+            default:
+                type = UNKNOWN_PROGRAM_TYPE;
+                break;
         }
-        else if (data.equals(Uint8Array.from(discriminatorToBuffer(CREATE_ASSOCIATED_TOKEN_DISCRIMINATOR)))) {
-            type = 'create';
-            info = parseCreateAssociatedTokenInstruction(intoInstructionData(instruction));
-        }
-        else if (data.equals(Uint8Array.from(discriminatorToBuffer(CREATE_ASSOCIATED_TOKEN_IDEMPOTENT_DISCRIMINATOR)))) {
-            type = 'createIdempotent';
-            info = parseCreateAssociatedTokenIdempotentInstruction(intoInstructionData(instruction));
-            console.log({ info });
-        }
-        else if (data.equals(Uint8Array.from(discriminatorToBuffer(RECOVER_NESTED_ASSOCIATED_TOKEN_DISCRIMINATOR)))) {
-            type ='recoverNested';
-            info = parseRecoverNestedAssociatedTokenInstruction(intoInstructionData(instruction));
-        }
-        else type = UNKNOWN_PROGRAM_TYPE;
 
+        console.log('info', { info });
         return {
             info: parsed ?? info, // allow for "parsed" to take priority over "info"
             type
@@ -66,7 +69,7 @@ function intoParsedData(instruction: TransactionInstruction, parsed?: any): any{
     };
 }
 
-function getInstructionData(instruction: TransactionInstruction, data?: any){
+function getInstructionData(instruction: TransactionInstruction, data?: any) {
     const program = intoProgramName(instruction.programId);
     const parsed = intoParsedData(instruction, data);
 
@@ -74,7 +77,7 @@ function getInstructionData(instruction: TransactionInstruction, data?: any){
 }
 
 
-function convertAccountKeysToParsedMessageAccounts(keys: AccountMeta[]): ParsedMessageAccount[]{
+function convertAccountKeysToParsedMessageAccounts(keys: AccountMeta[]): ParsedMessageAccount[] {
     const accountKeys = keys.map((key): ParsedMessageAccount => {
         return {
             pubkey: key.pubkey,
@@ -128,7 +131,7 @@ export function intoParsedTransaction(transactionInstruction: TransactionInstruc
  * Wrap instruction into format compatible with @solana-program/token library' parsers.
  *
  */
-export function intoInstructionData(instruction: TransactionInstruction | MessageCompiledInstruction){
+export function intoInstructionData(instruction: TransactionInstruction | MessageCompiledInstruction): IInstruction {
     let instructionData;
     if ('accountKeyIndexes' in instruction) {
         instructionData = {
