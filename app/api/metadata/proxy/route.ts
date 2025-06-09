@@ -42,6 +42,15 @@ export async function GET(request: Request, { params: _params }: Params) {
 
         const parsedUrl = new URL(uriParam);
 
+        // Define an allow-list of permitted hostnames
+        const ALLOWED_HOSTNAMES = ['example.com', 'api.example.com'];
+
+        // Validate hostname against the allow-list
+        if (!ALLOWED_HOSTNAMES.includes(parsedUrl.hostname)) {
+            Logger.error(new Error('Hostname not allowed'), parsedUrl.hostname);
+            return respondWithError(403, 'Hostname not allowed');
+        }
+
         // check that uri has supported protocol despite of any other checks
         if (!isHTTPProtocol(parsedUrl)) {
             Logger.error(new Error('Unsupported protocol'), parsedUrl.protocol);
